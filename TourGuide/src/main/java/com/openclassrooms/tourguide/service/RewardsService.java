@@ -1,6 +1,8 @@
 package com.openclassrooms.tourguide.service;
 
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 
@@ -37,15 +39,20 @@ public class RewardsService {
 	}
 	
 	public void calculateRewards(User user) {
-		List<VisitedLocation> userLocations = user.getVisitedLocations();
+		List<VisitedLocation> userLocations = List.copyOf(user.getVisitedLocations());
 		List<Attraction> attractions = gpsUtil.getAttractions();
+		Set<String> rewardedAttractionNames = user.getUserRewards().stream()
+				.map(reward -> reward.attraction.attractionName)
+				.collect(Collectors.toSet());
 		
 		for(VisitedLocation visitedLocation : userLocations) {
 			for(Attraction attraction : attractions) {
-				if(user.getUserRewards().stream().filter(r -> r.attraction.attractionName.equals(attraction.attractionName)).count() == 0) {
-					if(nearAttraction(visitedLocation, attraction)) {
-						user.addUserReward(new UserReward(visitedLocation, attraction, getRewardPoints(attraction, user)));
-					}
+				if (rewardedAttractionNames.contains(attraction.attractionName)) {
+					continue;
+				}
+				if (nearAttraction(visitedLocation, attraction)) {
+					user.addUserReward(new UserReward(visitedLocation, attraction, getRewardPoints(attraction, user)));
+					rewardedAttractionNames.add(attraction.attractionName);
 				}
 			}
 		}

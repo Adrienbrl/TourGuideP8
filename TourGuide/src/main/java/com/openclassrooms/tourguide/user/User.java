@@ -1,9 +1,10 @@
 package com.openclassrooms.tourguide.user;
 
-import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 import gpsUtil.location.VisitedLocation;
 import tripPricer.Provider;
@@ -14,10 +15,10 @@ public class User {
 	private String phoneNumber;
 	private String emailAddress;
 	private Date latestLocationTimestamp;
-	private List<VisitedLocation> visitedLocations = new ArrayList<>();
-	private List<UserReward> userRewards = new ArrayList<>();
+	private final List<VisitedLocation> visitedLocations = new CopyOnWriteArrayList<>();
+	private final List<UserReward> userRewards = new CopyOnWriteArrayList<>();
 	private UserPreferences userPreferences = new UserPreferences();
-	private List<Provider> tripDeals = new ArrayList<>();
+	private List<Provider> tripDeals = new CopyOnWriteArrayList<>();
 	public User(UUID userId, String userName, String phoneNumber, String emailAddress) {
 		this.userId = userId;
 		this.userName = userName;
@@ -69,10 +70,15 @@ public class User {
 		visitedLocations.clear();
 	}
 	
-	public void addUserReward(UserReward userReward) {
-		if(userRewards.stream().filter(r -> !r.attraction.attractionName.equals(userReward.attraction)).count() == 0) {
+	public synchronized void addUserReward(UserReward userReward) {
+		if (!hasRewardForAttraction(userReward.attraction.attractionName)) {
 			userRewards.add(userReward);
 		}
+	}
+
+	public synchronized boolean hasRewardForAttraction(String attractionName) {
+		return userRewards.stream()
+				.anyMatch(reward -> Objects.equals(reward.attraction.attractionName, attractionName));
 	}
 	
 	public List<UserReward> getUserRewards() {
@@ -92,7 +98,7 @@ public class User {
 	}
 	
 	public void setTripDeals(List<Provider> tripDeals) {
-		this.tripDeals = tripDeals;
+		this.tripDeals = new CopyOnWriteArrayList<>(tripDeals);
 	}
 	
 	public List<Provider> getTripDeals() {
