@@ -15,7 +15,10 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Random;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -33,6 +36,8 @@ import tripPricer.TripPricer;
 
 @Service
 public class TourGuideService {
+	private static final int THREAD_POOL_SIZE = 100;
+	private static final Executor USER_TRACKING_EXECUTOR = Executors.newFixedThreadPool(THREAD_POOL_SIZE);
 	private Logger logger = LoggerFactory.getLogger(TourGuideService.class);
 	private final GpsUtil gpsUtil;
 	private final RewardsService rewardsService;
@@ -41,6 +46,10 @@ public class TourGuideService {
 	boolean testMode = true;
 
 	public TourGuideService(GpsUtil gpsUtil, RewardsService rewardsService) {
+		this(gpsUtil, rewardsService, true);
+	}
+
+	public TourGuideService(GpsUtil gpsUtil, RewardsService rewardsService, boolean startTracker) {
 		this.gpsUtil = gpsUtil;
 		this.rewardsService = rewardsService;
 		
@@ -52,7 +61,7 @@ public class TourGuideService {
 			initializeInternalUsers();
 			logger.debug("Finished initializing users");
 		}
-		tracker = new Tracker(this);
+		tracker = new Tracker(this, startTracker);
 		addShutDownHook();
 	}
 
@@ -94,6 +103,15 @@ public class TourGuideService {
 		user.addToVisitedLocations(visitedLocation);
 		rewardsService.calculateRewards(user);
 		return visitedLocation;
+	}
+
+	public void trackUserLocation(List<User> users) {
+		int chunkSize = Math.max(1, (int) Math.ceil((double) users.size() / THREAD_POOL_SIZE));
+		CompletableFuture.allOf(java.util.stream.IntStream.iterate(0, start -> start < users.size(), start -> start + chunkSize)
+				.mapToObj(start -> users.subList(start, Math.min(start + chunkSize, users.size())))
+				.map(chunk -> CompletableFuture.runAsync(() -> chunk.forEach(this::trackUserLocation), USER_TRACKING_EXECUTOR))
+				.toArray(CompletableFuture[]::new))
+			.join();
 	}
 
 	public List<Attraction> getNearByAttractions(VisitedLocation visitedLocation) {

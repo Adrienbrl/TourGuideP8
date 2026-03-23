@@ -2,6 +2,9 @@ package com.openclassrooms.tourguide.service;
 
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
@@ -17,6 +20,8 @@ import com.openclassrooms.tourguide.user.UserReward;
 @Service
 public class RewardsService {
     private static final double STATUTE_MILES_PER_NAUTICAL_MILE = 1.15077945;
+	private static final int THREAD_POOL_SIZE = 100;
+	private static final Executor REWARD_EXECUTOR = Executors.newFixedThreadPool(THREAD_POOL_SIZE);
 
 	// proximity in miles
     private int defaultProximityBuffer = 10;
@@ -24,10 +29,12 @@ public class RewardsService {
 	private int attractionProximityRange = 200;
 	private final GpsUtil gpsUtil;
 	private final RewardCentral rewardsCentral;
+	private final List<Attraction> attractions;
 	
 	public RewardsService(GpsUtil gpsUtil, RewardCentral rewardCentral) {
 		this.gpsUtil = gpsUtil;
 		this.rewardsCentral = rewardCentral;
+		this.attractions = List.copyOf(gpsUtil.getAttractions());
 	}
 	
 	public void setProximityBuffer(int proximityBuffer) {
@@ -39,8 +46,32 @@ public class RewardsService {
 	}
 	
 	public void calculateRewards(User user) {
-		List<VisitedLocation> userLocations = List.copyOf(user.getVisitedLocations());
-		List<Attraction> attractions = gpsUtil.getAttractions();
+		calculateRewards(user, List.copyOf(user.getVisitedLocations()));
+	}
+
+	public void calculateRewards(User user, VisitedLocation visitedLocation) {
+		calculateRewards(user, List.of(visitedLocation));
+	}
+
+	public void calculateRewards(List<User> users) {
+		int chunkSize = Math.max(1, (int) Math.ceil((double) users.size() / THREAD_POOL_SIZE));
+		CompletableFuture.allOf(java.util.stream.IntStream.iterate(0, start -> start < users.size(), start -> start + chunkSize)
+				.mapToObj(start -> users.subList(start, Math.min(start + chunkSize, users.size())))
+				.map(chunk -> CompletableFuture.runAsync(() -> chunk.forEach(this::calculateRewards), REWARD_EXECUTOR))
+				.toArray(CompletableFuture[]::new))
+			.join();
+	}
+
+	public void calculateRewardsForLatestLocation(List<User> users) {
+		int chunkSize = Math.max(1, (int) Math.ceil((double) users.size() / THREAD_POOL_SIZE));
+		CompletableFuture.allOf(java.util.stream.IntStream.iterate(0, start -> start < users.size(), start -> start + chunkSize)
+				.mapToObj(start -> users.subList(start, Math.min(start + chunkSize, users.size())))
+				.map(chunk -> CompletableFuture.runAsync(() -> chunk.forEach(user -> calculateRewards(user, user.getLastVisitedLocation())), REWARD_EXECUTOR))
+				.toArray(CompletableFuture[]::new))
+			.join();
+	}
+
+	private void calculateRewards(User user, List<VisitedLocation> userLocations) {
 		Set<String> rewardedAttractionNames = user.getUserRewards().stream()
 				.map(reward -> reward.attraction.attractionName)
 				.collect(Collectors.toSet());

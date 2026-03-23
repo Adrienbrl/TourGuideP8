@@ -18,11 +18,19 @@ public class Tracker extends Thread {
 	private final ExecutorService executorService = Executors.newSingleThreadExecutor();
 	private final TourGuideService tourGuideService;
 	private volatile boolean stop = false;
+	private final boolean autoStart;
 
 	public Tracker(TourGuideService tourGuideService) {
-		this.tourGuideService = tourGuideService;
+		this(tourGuideService, true);
+	}
 
-		executorService.submit(this);
+	public Tracker(TourGuideService tourGuideService, boolean autoStart) {
+		this.tourGuideService = tourGuideService;
+		this.autoStart = autoStart;
+
+		if (this.autoStart) {
+			executorService.submit(this);
+		}
 	}
 
 	/**
@@ -30,7 +38,9 @@ public class Tracker extends Thread {
 	 */
 	public void stopTracking() {
 		stop = true;
-		executorService.shutdownNow();
+		if (autoStart) {
+			executorService.shutdownNow();
+		}
 	}
 
 	@Override
