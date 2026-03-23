@@ -2,6 +2,7 @@ package com.openclassrooms.tourguide.service;
 
 import com.openclassrooms.tourguide.helper.InternalTestHelper;
 import com.openclassrooms.tourguide.tracker.Tracker;
+import com.openclassrooms.tourguide.dto.NearbyAttractionDTO;
 import com.openclassrooms.tourguide.user.User;
 import com.openclassrooms.tourguide.user.UserReward;
 
@@ -96,14 +97,26 @@ public class TourGuideService {
 	}
 
 	public List<Attraction> getNearByAttractions(VisitedLocation visitedLocation) {
-		List<Attraction> nearbyAttractions = new ArrayList<>();
-		for (Attraction attraction : gpsUtil.getAttractions()) {
-			if (rewardsService.isWithinAttractionProximity(attraction, visitedLocation.location)) {
-				nearbyAttractions.add(attraction);
-			}
-		}
+		return gpsUtil.getAttractions().stream()
+				.sorted((left, right) -> Double.compare(
+						rewardsService.getDistance(left, visitedLocation.location),
+						rewardsService.getDistance(right, visitedLocation.location)))
+				.limit(5)
+				.collect(Collectors.toList());
+	}
 
-		return nearbyAttractions;
+	public List<NearbyAttractionDTO> getNearbyAttractionDetails(User user) {
+		VisitedLocation visitedLocation = getUserLocation(user);
+		return getNearByAttractions(visitedLocation).stream()
+				.map(attraction -> new NearbyAttractionDTO(
+						attraction.attractionName,
+						attraction.latitude,
+						attraction.longitude,
+						visitedLocation.location.latitude,
+						visitedLocation.location.longitude,
+						rewardsService.getDistance(attraction, visitedLocation.location),
+						rewardsService.getAttractionRewardPoints(attraction, user)))
+				.collect(Collectors.toList());
 	}
 
 	private void addShutDownHook() {
