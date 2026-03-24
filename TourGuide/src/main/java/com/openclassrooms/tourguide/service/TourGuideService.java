@@ -24,6 +24,7 @@ import java.util.stream.IntStream;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import gpsUtil.GpsUtil;
@@ -45,6 +46,7 @@ public class TourGuideService {
 	public final Tracker tracker;
 	boolean testMode = true;
 
+	@Autowired
 	public TourGuideService(GpsUtil gpsUtil, RewardsService rewardsService) {
 		this(gpsUtil, rewardsService, true);
 	}
