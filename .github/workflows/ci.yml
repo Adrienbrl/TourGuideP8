@@ -29,17 +29,14 @@ jobs:
           java-version: '17'
           cache: maven
 
-      - name: Ensure Maven wrapper is executable
-        run: chmod +x mvnw
-
       - name: Compile application
-        run: ./mvnw -B -DskipTests compile
+        run: mvn -B -DskipTests compile
 
       - name: Run unit and integration tests
-        run: ./mvnw -B -DexcludedGroups=performance test
+        run: mvn -B -DexcludedGroups=performance test
 
       - name: Build executable jar
-        run: ./mvnw -B -DskipTests package
+        run: mvn -B -DskipTests package
 
       - name: Upload jar artifact
         uses: actions/upload-artifact@v4
